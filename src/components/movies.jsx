@@ -1,9 +1,10 @@
 import React, { Component } from "react";
-import { getMovies, deleteMovie } from "../services/fakeMovieService";
+import { getMovies, deleteMovie } from "../services/movieService";
+import toast from "react-toastify";
 import Pagination from "./common/pagination";
 import { paginate } from "../utils/pagination";
 import ListGroup from "./common/listGroup";
-import { getGenres } from "../services/fakeGenreService";
+import { getGenres } from "../services/genreService";
 import MoviesTable from "./moviesTable";
 import { Link } from "react-router-dom";
 import SearchBox from "./common/searchBox";
@@ -20,17 +21,27 @@ class Movies extends Component {
     sortColumn: { path: "title", order: "asc" }
   };
 
-  componentDidMount() {
-    this.setState({
-      movies: getMovies(),
-      genres: [{ _id: "", name: "All Genre" }, ...getGenres()]
-    });
+  async componentDidMount() {
+    const { data } = await getGenres();
+    const { data: movies } = await getMovies();
+    const genres = [{ _id: "", name: "All Genre" }, ...data];
+
+    this.setState({ movies, genres });
   }
 
-  handleDelete = movie => {
-    deleteMovie(movie._id);
+  handleDelete = async movie => {
+    const originalMovies = this.state.movies;
     const movies = this.state.movies.filter(m => m._id !== movie._id);
     this.setState({ movies });
+
+    try {
+      await deleteMovie(movie._id);
+    } catch (e) {
+      if (e.response && e.response.status === 404) {
+        toast.error("This movie is already deleted");
+        this.setState({ originalMovies });
+      }
+    }
   };
 
   handleLike = movie => {
@@ -96,6 +107,8 @@ class Movies extends Component {
       searchQuery
     } = this.state;
 
+    const { user } = this.props;
+
     if (count === 0) return <p>There are no movies</p>;
 
     const { totalCount, data: movies } = this.getPagedData();
@@ -110,13 +123,15 @@ class Movies extends Component {
           />
         </div>
         <div className="col">
-          <Link
-            to="/movies/new"
-            className="btn btn-primary"
-            style={{ marginBottom: 20 }}
-          >
-            New Movies
-          </Link>
+          {user && (
+            <Link
+              to="/movies/new"
+              className="btn btn-primary"
+              style={{ marginBottom: 20 }}
+            >
+              New Movies
+            </Link>
+          )}
           <p>Showing {totalCount} movies</p>
           <SearchBox value={searchQuery} onChange={this.handleSearch} />
           <MoviesTable
